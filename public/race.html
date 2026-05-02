@@ -22,7 +22,8 @@
     font-size:56px;font-weight:900;color:var(--gold);text-align:center;line-height:1.1;
     max-width:900px;
   }
-  .qr-wrap{background:#fff;padding:18px;border-radius:18px}
+  .qr-wrap{background:#fff;padding:18px;border-radius:18px;line-height:0}
+  .qr-wrap img,.qr-wrap canvas{display:block}
   #screen-waiting .scan-label{font-size:20px;color:var(--muted)}
   #screen-waiting .vote-url{font-size:16px;color:var(--gold);letter-spacing:.04em}
   #screen-waiting .live-tally{font-size:15px;color:#444;margin-top:4px}
@@ -45,7 +46,13 @@
     padding:22px 26px;font-size:22px;font-weight:700;color:#fff;
   }
   .preview-option .emo{font-size:36px;flex-shrink:0}
-  .preview-sub{font-size:18px;color:var(--muted);text-align:center;margin-top:28px}
+  .preview-footer{display:flex;align-items:center;justify-content:center;gap:40px;margin-top:28px}
+  .preview-qr-block{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
+  .preview-qr-wrap{background:#fff;padding:14px;border-radius:16px;line-height:0}
+  .preview-qr-wrap img,.preview-qr-wrap canvas{display:block}
+  .preview-qr-label{font-size:16px;font-weight:700;color:#fff}
+  .preview-qr-url{font-size:13px;color:var(--gold);letter-spacing:.04em}
+  .preview-sub{font-size:18px;color:var(--muted);max-width:500px;line-height:1.5}
 
   /* ===== TRAFFIC LIGHT ===== */
   #screen-lights{
@@ -131,17 +138,24 @@
 <!-- WAITING: QR + question teaser -->
 <div id="screen-waiting">
   <h1>If you had 10 extra hours<br>in a week, what would you do?</h1>
-  <div class="qr-wrap"><canvas id="qr-canvas" width="180" height="180"></canvas></div>
+  <div class="qr-wrap" id="qr-waiting"></div>
   <div class="scan-label">Scan to join</div>
   <div class="vote-url" id="vote-url"></div>
   <div class="live-tally" id="waiting-count"></div>
 </div>
 
-<!-- PREVIEW: question + 8 options, no vote counts -->
+<!-- PREVIEW: question + 8 options + QR in corner -->
 <div id="screen-preview">
   <div class="preview-question">If you had 10 extra hours in a week,<br>what would you do?</div>
   <div class="preview-grid" id="preview-grid"></div>
-  <div class="preview-sub">🏁 Race starting in a moment — get ready to vote on your phone!</div>
+  <div class="preview-footer">
+    <div class="preview-qr-block">
+      <div class="preview-qr-wrap" id="qr-preview"></div>
+      <div class="preview-qr-label">Scan to vote</div>
+      <div class="preview-qr-url" id="preview-url"></div>
+    </div>
+    <div class="preview-sub">🏁 Race starting in a moment — get ready to vote on your phone!</div>
+  </div>
 </div>
 
 <!-- TRAFFIC LIGHT -->
@@ -211,14 +225,20 @@
     });
   }
 
-  // QR
+  // QR codes
   document.getElementById("vote-url").textContent = VOTE_URL;
-  try {
-    new QRCode(document.getElementById("qr-canvas"),{
-      text:VOTE_URL,width:180,height:180,colorDark:"#000",colorLight:"#fff",
-      correctLevel:QRCode.CorrectLevel.M
-    });
-  } catch(e){}
+  document.getElementById("preview-url").textContent = VOTE_URL;
+  function makeQR(elId, size) {
+    try {
+      new QRCode(document.getElementById(elId), {
+        text: VOTE_URL, width: size, height: size,
+        colorDark: "#000000", colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {}
+  }
+  makeQR("qr-waiting", 220);
+  makeQR("qr-preview", 160);
 
   // Preview grid (build once)
   function buildPreview(){
