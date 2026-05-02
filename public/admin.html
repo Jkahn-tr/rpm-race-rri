@@ -5,36 +5,39 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>RPM Race — Host Console</title>
 <style>
-  :root{--bg:#0a0a0a;--panel:#111;--gold:#FFD700;--amber:#D4651A;--green:#1ec860;--red:#e63946;--muted:#888}
+  :root{--bg:#0a0a0a;--gold:#FFD700;--amber:#D4651A;--green:#1ec860;--red:#e63946;--muted:#888}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro",Segoe UI,Roboto,sans-serif;padding:32px;max-width:860px;margin:0 auto}
+  body{background:var(--bg);color:#fff;padding:32px;max-width:860px;margin:0 auto;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro",Segoe UI,Roboto,sans-serif}
   .brand{display:flex;align-items:center;gap:10px;margin-bottom:28px}
   .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
   h1{font-size:20px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase}
-  .card{background:var(--panel);border-radius:16px;padding:24px;margin-bottom:20px;border:1px solid #1a1a1a}
-  h2{font-size:16px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:16px}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:0}
+  .card{background:#111;border-radius:16px;padding:24px;margin-bottom:20px;border:1px solid #1a1a1a}
+  h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:16px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .stat{background:#0d0d0d;border-radius:12px;padding:16px;text-align:center}
-  .stat .v{font-size:36px;font-weight:900;color:var(--gold)}
+  .stat .v{font-size:34px;font-weight:900;color:var(--gold)}
   .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
-  .pill{padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700;letter-spacing:.06em;display:inline-block}
-  .pill.waiting{background:#222;color:#888}
-  .pill.open{background:#0e2418;color:var(--green);border:1px solid var(--green)}
-  .pill.racing{background:#241a04;color:var(--amber);border:1px solid var(--amber)}
-  .pill.finished{background:#1a1400;color:var(--gold);border:1px solid var(--gold)}
+  .pill{padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700;display:inline-block}
+  .pill.waiting  {background:#222;color:#888}
+  .pill.preview  {background:#141c2e;color:#6fa8ff;border:1px solid #6fa8ff}
+  .pill.racing   {background:#241a04;color:var(--amber);border:1px solid var(--amber)}
+  .pill.finished {background:#1a1400;color:var(--gold);border:1px solid var(--gold)}
   .btns{display:flex;gap:12px;flex-wrap:wrap}
-  .btn{padding:14px 24px;border-radius:12px;border:0;font-size:15px;font-weight:700;cursor:pointer;transition:transform .06s,opacity .15s}
+  .btn{padding:14px 24px;border-radius:12px;border:0;font-size:15px;font-weight:700;cursor:pointer;
+    transition:transform .06s,opacity .15s}
   .btn:active{transform:scale(.98)}
   .btn:disabled{opacity:.4;cursor:not-allowed}
-  .btn.go{background:var(--green);color:#000}
-  .btn.race{background:var(--amber);color:#000}
-  .btn.danger{background:var(--red);color:#fff}
-  .btn.secondary{background:#222;color:#fff}
+  .btn.preview-btn{background:#6fa8ff;color:#000}
+  .btn.race-btn   {background:var(--amber);color:#000}
+  .btn.danger     {background:var(--red);color:#fff}
+  .flow{color:var(--muted);font-size:13px;margin-top:14px;line-height:1.7}
+  .flow strong{color:#fff}
   .tally{display:flex;flex-direction:column;gap:10px}
   .trow{display:flex;align-items:center;gap:12px}
   .temo{font-size:20px;width:28px;text-align:center}
   .tlabel{font-size:14px;font-weight:600;width:220px;flex-shrink:0}
-  .tbar-wrap{flex:1;background:#1e1e1e;border-radius:6px;height:28px;overflow:hidden}
+  .tbar-wrap{flex:1;background:#1e1e1e;border-radius:6px;height:26px;overflow:hidden}
   .tbar{height:100%;background:linear-gradient(90deg,var(--amber),var(--gold));transition:width .4s}
   .tcnt{font-size:14px;font-weight:800;color:var(--gold);width:40px;text-align:right}
   /* Login */
@@ -51,7 +54,7 @@
 <div id="login-screen">
   <h2>Host Console</h2>
   <input id="pw" type="password" placeholder="Admin password" autocomplete="off"/>
-  <button class="btn go" id="login-btn">Sign in</button>
+  <button class="btn race-btn" id="login-btn">Sign in</button>
   <div id="login-err"></div>
 </div>
 
@@ -65,22 +68,23 @@
     </div>
     <div class="stats">
       <div class="stat"><div class="v" id="stat-total">0</div><div class="l">Votes</div></div>
-      <div class="stat"><div class="v" id="stat-leading-emo">—</div><div class="l">Leading</div></div>
-      <div class="stat"><div class="v" id="stat-leading-pct">—</div><div class="l">Vote %</div></div>
-      <div class="stat"><div class="v" id="stat-race-t">—</div><div class="l">Race time</div></div>
+      <div class="stat"><div class="v" id="stat-emo">—</div><div class="l">Leading</div></div>
+      <div class="stat"><div class="v" id="stat-pct">—</div><div class="l">Vote %</div></div>
     </div>
   </div>
 
   <div class="card">
     <h2>Controls</h2>
     <div class="btns">
-      <button class="btn go" id="btn-open">Open Voting</button>
-      <button class="btn race" id="btn-race" disabled>🏁 Start Race</button>
-      <button class="btn danger" id="btn-reset">Reset</button>
+      <button class="btn preview-btn" id="btn-preview">👀 Show Question</button>
+      <button class="btn race-btn"    id="btn-race">🏁 Start Race</button>
+      <button class="btn danger"      id="btn-reset">Reset</button>
     </div>
-    <p style="margin-top:14px;color:var(--muted);font-size:13px">
-      Flow: <strong style="color:#fff">Open Voting</strong> → let people vote → <strong style="color:#fff">Start Race</strong> → 20s traffic light + race → winner announced automatically.
-    </p>
+    <div class="flow">
+      <strong>Show Question</strong> → question + 8 options appear on big screen (no voting yet)<br>
+      <strong>Start Race</strong> → voting opens on phones, traffic light, 20s race, winner auto-announced<br>
+      <em>You can skip straight to Start Race if you want.</em>
+    </div>
   </div>
 
   <div class="card">
@@ -108,77 +112,58 @@
   let pw = sessionStorage.getItem(KEY) || "";
 
   async function api(path, method="GET"){
-    const r = await fetch(BACKEND+path, { method, headers:{"x-admin-password":pw, "content-type":"application/json"} });
+    const r = await fetch(BACKEND+path, {method, headers:{"x-admin-password":pw,"content-type":"application/json"}});
     if (r.status===401){ sessionStorage.removeItem(KEY); pw=""; $("console").style.display="none"; $("login-screen").style.display="flex"; throw new Error("auth"); }
     return r.json();
   }
-
-  async function tryAuth(candidate){
-    const r = await fetch(BACKEND+"/admin/status", {headers:{"x-admin-password":candidate}});
-    if (r.ok){ pw=candidate; sessionStorage.setItem(KEY,pw); $("login-screen").style.display="none"; $("console").style.display="block"; refresh(); return true; }
+  async function tryAuth(v){
+    const r = await fetch(BACKEND+"/admin/status",{headers:{"x-admin-password":v}});
+    if(r.ok){pw=v;sessionStorage.setItem(KEY,pw);$("login-screen").style.display="none";$("console").style.display="block";refresh();return true;}
     return false;
   }
-
-  if (pw) tryAuth(pw).catch(()=>{});
-
-  $("login-btn").addEventListener("click", async()=>{
-    const v = $("pw").value.trim(); if(!v) return;
+  if(pw) tryAuth(pw).catch(()=>{});
+  $("login-btn").addEventListener("click",async()=>{
+    const v=$("pw").value.trim();if(!v)return;
     $("login-err").textContent="";
-    const ok = await tryAuth(v).catch(()=>false);
-    if(!ok) $("login-err").textContent="Wrong password.";
+    if(!await tryAuth(v).catch(()=>false)) $("login-err").textContent="Wrong password.";
   });
-  $("pw").addEventListener("keydown", e=>{ if(e.key==="Enter") $("login-btn").click(); });
+  $("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") $("login-btn").click(); });
 
-  // Tally
   function buildTally(){
-    $("tally").innerHTML = OPTIONS.map(o =>
+    $("tally").innerHTML = OPTIONS.map(o=>
       `<div class="trow"><span class="temo">${o.emoji}</span><span class="tlabel">${escHtml(o.label)}</span>
-       <div class="tbar-wrap"><div class="tbar" id="abar-${o.id}" style="width:0%"></div></div>
-       <span class="tcnt" id="acnt-${o.id}">0</span></div>`
+       <div class="tbar-wrap"><div class="tbar" id="b${o.id}" style="width:0%"></div></div>
+       <span class="tcnt" id="c${o.id}">0</span></div>`
     ).join("");
-  }
-
-  function updateTally(votes, total){
-    OPTIONS.forEach(o=>{
-      const v=votes[o.id]||0;
-      const pct=total>0?(v/total*100):0;
-      const bar=$("abar-"+o.id); const cnt=$("acnt-"+o.id);
-      if(bar) bar.style.width=pct+"%";
-      if(cnt) cnt.textContent=v;
-    });
   }
 
   async function refresh(){
     try{
-      const data = await api("/admin/status");
-      const s = data.state;
+      const d = await api("/admin/status");
+      const s = d.state;
       $("stat-total").textContent = s.totalVotes;
-
-      // Leading
       const sorted = OPTIONS.map(o=>({...o,v:s.votes[o.id]||0})).sort((a,b)=>b.v-a.v);
-      const leader = sorted[0];
-      $("stat-leading-emo").textContent = leader.emoji;
-      $("stat-leading-pct").textContent = s.totalVotes>0 ? Math.round(leader.v/s.totalVotes*100)+"%" : "—";
-
-      // Race timer
-      if(s.raceStartedAt){
-        const elapsed = Math.floor((Date.now()-s.raceStartedAt)/1000);
-        $("stat-race-t").textContent = Math.max(0,20-elapsed)+"s";
-      } else { $("stat-race-t").textContent="—"; }
-
+      $("stat-emo").textContent = sorted[0].emoji;
+      $("stat-pct").textContent = s.totalVotes>0 ? Math.round(sorted[0].v/s.totalVotes*100)+"%" : "—";
       const pill=$("status-pill"); pill.className="pill "+s.status; pill.textContent=s.status;
 
-      $("btn-open").disabled = s.status!=="waiting";
-      $("btn-race").disabled = s.status!=="open";
+      $("btn-preview").disabled = s.status !== "waiting";
+      $("btn-race").disabled    = s.status === "racing" || s.status === "finished";
 
       if(!$("tally").children.length) buildTally();
-      updateTally(s.votes, s.totalVotes);
+      OPTIONS.forEach(o=>{
+        const v=s.votes[o.id]||0;
+        const pct=s.totalVotes>0?(v/s.totalVotes*100):0;
+        const b=$("b"+o.id),c=$("c"+o.id);
+        if(b) b.style.width=pct+"%";
+        if(c) c.textContent=v;
+      });
     }catch(e){}
   }
 
-  $("btn-open").addEventListener("click", ()=>api("/admin/open","POST").then(refresh));
-  $("btn-race").addEventListener("click", ()=>api("/admin/race","POST").then(refresh));
-  $("btn-reset").addEventListener("click", ()=>{ if(confirm("Reset everything?")) api("/admin/reset","POST").then(refresh); });
+  $("btn-preview").addEventListener("click", ()=>api("/admin/preview","POST").then(refresh));
+  $("btn-race").addEventListener("click",    ()=>api("/admin/race","POST").then(refresh));
+  $("btn-reset").addEventListener("click",   ()=>{ if(confirm("Reset?")) api("/admin/reset","POST").then(refresh); });
 
   setInterval(()=>{ if($("console").style.display!=="none") refresh(); }, 1000);
 
