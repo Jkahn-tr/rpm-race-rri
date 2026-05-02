@@ -76,6 +76,17 @@ app.get("/options", (req, res) => {
   res.json({ options: OPTIONS, state: publicState() });
 });
 
+// ---- Throttled broadcast (max 4x/sec during racing) ----
+let broadcastPending = false;
+function broadcastThrottled() {
+  if (broadcastPending) return;
+  broadcastPending = true;
+  setTimeout(() => {
+    broadcastPending = false;
+    broadcast({ type: "state", state: publicState() });
+  }, 250); // 4 Hz
+}
+
 // ---- Player: vote (only accepted during "racing") ----
 app.post("/vote", (req, res) => {
   const { sessionId, optionId } = req.body;
@@ -91,7 +102,7 @@ app.post("/vote", (req, res) => {
   state.voters.set(sessionId, optionId);
   state.votes[optionId]++;
 
-  broadcast({ type: "state", state: publicState() });
+  broadcastThrottled(); // don't fan-out on every vote
   res.json({ ok: true, optionId, state: publicState() });
 });
 
