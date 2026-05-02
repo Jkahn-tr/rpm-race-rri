@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RPM Race — Presentation Screen</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --track:#141414; --gold:#FFD700; --amber:#D4651A;
+    --green:#1ec860; --red:#e63946; --text:#fff; --muted:#9a9a9a;
+    --race-dur: 20s;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Segoe UI,Roboto,sans-serif;
+    overflow:hidden}
+
+  /* ---- WAITING screen ---- */
+  #screen-waiting{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:20px;
+  }
+  .qr-wrap{background:#fff;padding:20px;border-radius:20px}
+  #screen-waiting h1{font-size:52px;font-weight:900;color:var(--gold);text-align:center;line-height:1.1}
+  #screen-waiting p{font-size:22px;color:var(--muted);text-align:center}
+  #screen-waiting .url{font-size:18px;color:var(--gold);letter-spacing:.05em;margin-top:4px}
+
+  /* ---- OPEN (live vote tally bars) ---- */
+  #screen-open{
+    position:absolute;inset:0;display:none;flex-direction:column;padding:32px 48px;
+  }
+  .open-title{font-size:32px;font-weight:800;color:var(--gold);margin-bottom:6px}
+  .open-sub{font-size:18px;color:var(--muted);margin-bottom:28px}
+  .tally-list{display:flex;flex-direction:column;gap:14px;flex:1}
+  .tally-row{display:flex;align-items:center;gap:16px}
+  .tally-emo{font-size:28px;width:40px;text-align:center;flex-shrink:0}
+  .tally-label{font-size:18px;font-weight:600;width:260px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tally-bar-wrap{flex:1;background:#1e1e1e;border-radius:8px;height:38px;position:relative;overflow:hidden}
+  .tally-bar{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--amber),var(--gold));transition:width .5s ease;min-width:0}
+  .tally-count{font-size:18px;font-weight:800;color:var(--gold);width:60px;text-align:right;flex-shrink:0}
+  .vote-total{font-size:16px;color:var(--muted);text-align:center;margin-top:18px}
+
+  /* ---- TRAFFIC LIGHT ---- */
+  #screen-lights{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:0;
+  }
+  .light-housing{
+    background:#1a1a1a;border:3px solid #333;border-radius:24px;
+    padding:20px 24px;display:flex;flex-direction:column;gap:16px;
+    box-shadow:0 0 60px rgba(0,0,0,.8);
+  }
+  .light{width:100px;height:100px;border-radius:50%;background:#222;border:3px solid #333;transition:background .15s,box-shadow .15s}
+  .light.on-red{background:var(--red);box-shadow:0 0 40px 10px var(--red),0 0 80px 20px rgba(230,57,70,.4)}
+  .light.on-amber{background:var(--amber);box-shadow:0 0 40px 10px var(--amber),0 0 80px 20px rgba(212,101,26,.4)}
+  .light.on-green{background:var(--green);box-shadow:0 0 40px 10px var(--green),0 0 80px 20px rgba(30,200,96,.4)}
+  .go-text{font-size:80px;font-weight:900;color:var(--green);opacity:0;transition:opacity .2s;margin-top:20px;letter-spacing:.05em;text-shadow:0 0 40px var(--green)}
+  .go-text.show{opacity:1}
+
+  /* ---- RACE screen ---- */
+  #screen-race{
+    position:absolute;inset:0;display:none;flex-direction:column;padding:24px 40px;
+  }
+  .race-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .race-title{font-size:26px;font-weight:800;color:var(--gold)}
+  .race-timer{font-size:40px;font-weight:900;color:var(--text);min-width:60px;text-align:right}
+  .race-timer.urgent{color:var(--red)}
+
+  .track-list{display:flex;flex-direction:column;gap:0;flex:1}
+  .lane{display:flex;align-items:center;height:calc(100% / 8);min-height:52px;position:relative;border-bottom:1px solid #1a1a1a}
+  .lane:last-child{border-bottom:none}
+  .lane-label{font-size:15px;font-weight:700;color:var(--muted);width:220px;flex-shrink:0;
+    display:flex;align-items:center;gap:8px;padding-left:4px;white-space:nowrap;overflow:hidden}
+  .lane-label .le{font-size:22px}
+  .lane-track{flex:1;position:relative;height:44px;background:#111;border-radius:10px;overflow:visible;margin:0 8px}
+  .lane-road{position:absolute;inset:0;border-radius:10px;
+    background:repeating-linear-gradient(90deg,#111 0,#111 30px,#1a1a1a 30px,#1a1a1a 60px);
+    overflow:hidden}
+  /* dashed centre line */
+  .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;
+    background:repeating-linear-gradient(90deg,#333 0,#333 20px,transparent 20px,transparent 40px);
+    transform:translateY(-50%)}
+  .car{position:absolute;top:50%;transform:translateY(-50%);font-size:30px;line-height:1;
+    transition:left 0.5s linear;left:0;filter:drop-shadow(2px 2px 4px rgba(0,0,0,.5))}
+  .finish-line{position:absolute;top:-4px;bottom:-4px;width:6px;right:0;
+    background:repeating-linear-gradient(180deg,#fff 0,#fff 8px,#000 8px,#000 16px);
+    border-radius:2px}
+  .lane-pct{font-size:15px;font-weight:800;color:var(--gold);width:46px;text-align:right;flex-shrink:0}
+
+  /* ---- WINNER screen ---- */
+  #screen-winner{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center, #1a1a0a 0%, #0a0a0a 70%);
+  }
+  .confetti-canvas{position:absolute;inset:0;pointer-events:none}
+  .winner-content{position:relative;text-align:center}
+  .trophy{font-size:100px;line-height:1;animation:bounce .6s ease-in-out infinite alternate}
+  @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-12px)}}
+  .winner-label{font-size:44px;font-weight:900;color:var(--gold);margin:16px 0 8px;
+    text-shadow:0 0 40px rgba(255,215,0,.6)}
+  .winner-name{font-size:34px;font-weight:800;color:#fff}
+  .winner-pct{font-size:22px;color:var(--muted);margin-top:8px}
+
+  /* fade util */
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- WAITING -->
+<div id="screen-waiting">
+  <h1>If you had 10 extra hours<br>in a week,<br>what would you do?</h1>
+  <div class="qr-wrap"><canvas id="qr-canvas" width="200" height="200"></canvas></div>
+  <p>Scan to vote</p>
+  <div class="url" id="vote-url"></div>
+  <p style="margin-top:16px;color:#444;font-size:15px"><span id="live-count">0</span> votes cast</p>
+</div>
+
+<!-- OPEN (live tally) -->
+<div id="screen-open">
+  <div class="open-title">If you had 10 extra hours in a week, what would you do?</div>
+  <div class="open-sub">Voting is open — cast your vote now!</div>
+  <div class="tally-list" id="tally-list"></div>
+  <div class="vote-total" id="tally-total">0 votes</div>
+</div>
+
+<!-- TRAFFIC LIGHT -->
+<div id="screen-lights">
+  <div class="light-housing">
+    <div class="light" id="light-red"></div>
+    <div class="light" id="light-amber"></div>
+    <div class="light" id="light-green"></div>
+  </div>
+  <div class="go-text" id="go-text">GO!</div>
+</div>
+
+<!-- RACE -->
+<div id="screen-race">
+  <div class="race-header">
+    <div class="race-title">🏁 If you had 10 extra hours…</div>
+    <div class="race-timer" id="race-timer">20</div>
+  </div>
+  <div class="track-list" id="track-list"></div>
+</div>
+
+<!-- WINNER -->
+<div id="screen-winner">
+  <canvas class="confetti-canvas" id="confetti-canvas"></canvas>
+  <div class="winner-content">
+    <div class="trophy">🏆</div>
+    <div class="winner-label">The crowd says…</div>
+    <div class="winner-name" id="winner-name"></div>
+    <div class="winner-pct" id="winner-pct"></div>
+  </div>
+</div>
+
+<!-- QR lib -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const BACKEND = "https://rpm-race-rri.fly.dev";
+  const WS_URL  = "wss://rpm-race-rri.fly.dev/ws";
+  const VOTE_URL = location.protocol + "//" + location.host + "/";
+  const RACE_DUR_MS = 20000;
+
+  const OPTIONS = [
+    {id:0,label:"Spend more time with family",   emoji:"👨‍👩‍👧"},
+    {id:1,label:"Start a side business",          emoji:"🚀"},
+    {id:2,label:"Travel somewhere new",           emoji:"✈️"},
+    {id:3,label:"Exercise & get in shape",        emoji:"💪"},
+    {id:4,label:"Learn a new skill",              emoji:"📚"},
+    {id:5,label:"Rest. Seriously, just rest.",    emoji:"😴"},
+    {id:6,label:"Give back / volunteer",          emoji:"🤝"},
+    {id:7,label:"Scroll my phone but guilt-free", emoji:"📱"},
+  ];
+  const CAR_EMOJIS = ["🏎️","🚗","🚕","🚙","🚓","🚑","🚒","🚐"];
+
+  let currentState = null;
+  let raceInterval = null;
+
+  // ---- Screens ----
+  const screenIds = ["waiting","open","lights","race","winner"];
+  function show(s){
+    screenIds.forEach(id => {
+      const el = document.getElementById("screen-"+id);
+      el.style.display = (id===s) ? "flex" : "none";
+    });
+  }
+
+  // ---- QR Code ----
+  const voteUrl = VOTE_URL;
+  document.getElementById("vote-url").textContent = voteUrl;
+  try {
+    new QRCode(document.getElementById("qr-canvas"), {
+      text: voteUrl, width:200, height:200,
+      colorDark:"#000000", colorLight:"#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {}
+
+  // ---- Tally (open screen) ----
+  function renderTally(votes, total){
+    const list = document.getElementById("tally-list");
+    if (!list.children.length) {
+      list.innerHTML = OPTIONS.map(o =>
+        `<div class="tally-row" id="trow-${o.id}">
+          <span class="tally-emo">${o.emoji}</span>
+          <span class="tally-label">${escHtml(o.label)}</span>
+          <div class="tally-bar-wrap"><div class="tally-bar" id="tbar-${o.id}" style="width:0%"></div></div>
+          <span class="tally-count" id="tcnt-${o.id}">0</span>
+        </div>`
+      ).join("");
+    }
+    OPTIONS.forEach(o => {
+      const v = votes[o.id] || 0;
+      const pct = total > 0 ? (v/total*100) : 0;
+      document.getElementById("tbar-"+o.id).style.width = pct + "%";
+      document.getElementById("tcnt-"+o.id).textContent = v;
+    });
+    document.getElementById("tally-total").textContent = total + " vote"+(total===1?"":"s")+" cast";
+    document.getElementById("live-count").textContent = total;
+  }
+
+  // ---- Traffic light sequence then race ----
+  function doLightsAndRace(raceStartedAt) {
+    show("lights");
+    const now = Date.now();
+    const elapsed = now - raceStartedAt;
+
+    // Light sequence: red 800ms, amber 800ms, green 400ms, GO
+    // If we're mid-sequence, skip ahead
+    const seq = [
+      {delay:0,    fn:()=>{ document.getElementById("light-red").classList.add("on-red"); }},
+      {delay:900,  fn:()=>{ document.getElementById("light-red").classList.remove("on-red"); document.getElementById("light-amber").classList.add("on-amber"); }},
+      {delay:1800, fn:()=>{ document.getElementById("light-amber").classList.remove("on-amber"); document.getElementById("light-green").classList.add("on-green"); document.getElementById("go-text").classList.add("show"); }},
+      {delay:2400, fn:()=>{ startRaceScreen(raceStartedAt); }},
+    ];
+
+    // Reset lights
+    ["red","amber","green"].forEach(c => document.getElementById("light-"+c).className="light");
+    document.getElementById("go-text").classList.remove("show");
+
+    if (elapsed > 2400) {
+      // Already past lights, go straight to race
+      startRaceScreen(raceStartedAt);
+    } else {
+      seq.forEach(s => {
+        const remaining = s.delay - elapsed;
+        if (remaining <= 0) s.fn();
+        else setTimeout(s.fn, remaining);
+      });
+    }
+  }
+
+  // ---- Race screen ----
+  function buildTrack(){
+    const list = document.getElementById("track-list");
+    list.innerHTML = OPTIONS.map((o,i) =>
+      `<div class="lane" id="lane-${o.id}">
+        <div class="lane-label"><span class="le">${o.emoji}</span>${escHtml(o.label)}</div>
+        <div class="lane-track">
+          <div class="lane-road"></div>
+          <div class="finish-line"></div>
+          <div class="car" id="car-${o.id}" style="left:0">${CAR_EMOJIS[i]}</div>
+        </div>
+        <div class="lane-pct" id="lpct-${o.id}">0%</div>
+      </div>`
+    ).join("");
+  }
+
+  function updateCarPositions(votes, total, progress){
+    // progress 0-1, max car gets to ~92% of track at progress=1
+    // All cars move proportional to their vote share, scaled by race progress
+    const maxTrackPct = 92;
+    const maxVotes = Math.max(1, ...Object.values(votes));
+
+    OPTIONS.forEach(o => {
+      const v = votes[o.id] || 0;
+      const votePct = v / maxVotes; // 0-1, relative to leader
+      // Leader reaches 92% at end; others scale proportionally
+      // Add slight randomness jitter during race for drama
+      const jitter = (progress < 1) ? (Math.random() * 2 - 1) * 1.5 * progress : 0;
+      const trackPct = Math.max(0, Math.min(maxTrackPct, votePct * maxTrackPct * progress + jitter));
+      const car = document.getElementById("car-"+o.id);
+      const lane = document.getElementById("lane-"+o.id);
+      if (!car || !lane) return;
+      const trackEl = lane.querySelector(".lane-track");
+      const trackW = trackEl ? trackEl.offsetWidth - 48 : 400; // 48 = car width approx
+      car.style.left = (trackPct / 100 * trackW) + "px";
+      // Vote % label
+      const pct = total > 0 ? Math.round(v/total*100) : 0;
+      document.getElementById("lpct-"+o.id).textContent = pct + "%";
+    });
+  }
+
+  function startRaceScreen(raceStartedAt){
+    show("race");
+    buildTrack();
+    if (raceInterval) clearInterval(raceInterval);
+
+    const timerEl = document.getElementById("race-timer");
+
+    raceInterval = setInterval(() => {
+      const elapsed = Date.now() - raceStartedAt;
+      const progress = Math.min(1, elapsed / RACE_DUR_MS);
+      const secsLeft = Math.max(0, Math.ceil((RACE_DUR_MS - elapsed) / 1000));
+
+      timerEl.textContent = secsLeft;
+      timerEl.classList.toggle("urgent", secsLeft <= 5);
+
+      if (currentState) {
+        updateCarPositions(currentState.votes, currentState.totalVotes, progress);
+      }
+
+      if (progress >= 1) {
+        clearInterval(raceInterval);
+        // Winner announced by server "finished" event; if already received, show it
+        if (currentState && currentState.status === "finished") {
+          showWinner(currentState);
+        }
+      }
+    }, 200);
+  }
+
+  // ---- Winner ----
+  function showWinner(state){
+    if (raceInterval) clearInterval(raceInterval);
+    const opt = OPTIONS.find(o => o.id === state.winner);
+    if (!opt) return;
+    const total = state.totalVotes;
+    const v = state.votes[state.winner] || 0;
+    const pct = total > 0 ? Math.round(v/total*100) : 0;
+    document.getElementById("winner-name").textContent = opt.emoji + " " + opt.label;
+    document.getElementById("winner-pct").textContent = pct + "% of votes (" + v + " / " + total + ")";
+    show("winner");
+    startConfetti();
+  }
+
+  // ---- Confetti ----
+  function startConfetti(){
+    const canvas = document.getElementById("confetti-canvas");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext("2d");
+    const pieces = Array.from({length:200}, () => ({
+      x: Math.random()*canvas.width, y: Math.random()*canvas.height - canvas.height,
+      r: 6+Math.random()*6, c: `hsl(${Math.random()*360},90%,60%)`,
+      vx: (Math.random()-0.5)*4, vy: 2+Math.random()*4,
+      spin: (Math.random()-0.5)*0.2, angle: Math.random()*Math.PI*2,
+    }));
+    let running = true;
+    function tick(){
+      if (!running) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.angle += p.spin;
+        if (p.y > canvas.height) { p.y = -p.r; p.x = Math.random()*canvas.width; }
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.angle);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r);
+        ctx.restore();
+      });
+      requestAnimationFrame(tick);
+    }
+    tick();
+    setTimeout(() => { running=false; ctx.clearRect(0,0,canvas.width,canvas.height); }, 8000);
+  }
+
+  // ---- Apply state ----
+  function applyState(state){
+    currentState = state;
+    document.getElementById("live-count").textContent = state.totalVotes;
+
+    if (state.status === "waiting") {
+      show("waiting");
+    } else if (state.status === "open") {
+      renderTally(state.votes, state.totalVotes);
+      show("open");
+    } else if (state.status === "racing") {
+      renderTally(state.votes, state.totalVotes); // keep tally updated in bg
+      doLightsAndRace(state.raceStartedAt);
+    } else if (state.status === "finished") {
+      showWinner(state);
+    }
+  }
+
+  // ---- WS ----
+  let ws, reconnDelay = 500;
+  function connectWS(){
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => { reconnDelay = 500; };
+    ws.onmessage = ev => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "state") applyState(msg.state);
+      if (msg.type === "finished") { currentState = msg.state; showWinner(msg.state); }
+      if (msg.type === "reset") { currentState = null; if(raceInterval) clearInterval(raceInterval); show("waiting"); }
+    };
+    ws.onclose = () => { setTimeout(connectWS, reconnDelay); reconnDelay = Math.min(5000, Math.round(reconnDelay*1.6)); };
+    ws.onerror = () => {};
+  }
+
+  // Initial load
+  fetch(BACKEND + "/options").then(r=>r.json()).then(data => {
+    applyState(data.state);
+    connectWS();
+  }).catch(() => connectWS());
+
+  function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+})();
+</script>
+</body>
+</html>

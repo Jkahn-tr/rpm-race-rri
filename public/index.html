@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
+<meta name="theme-color" content="#0a0a0a"/>
+<title>RPM Race — Cast Your Vote</title>
+<style>
+  :root{--bg:#0a0a0a;--panel:#141414;--gold:#FFD700;--amber:#D4651A;--green:#1ec860;--red:#e63946;--text:#fff;--muted:#9a9a9a;--border:#222}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro",Segoe UI,Roboto,sans-serif;overscroll-behavior:none}
+  body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+  .app{flex:1;display:flex;flex-direction:column;padding:20px;max-width:560px;width:100%;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
+  .brand h1{font-size:14px;letter-spacing:.18em;text-transform:uppercase;margin:0;color:var(--gold);font-weight:700}
+  h2{font-size:26px;font-weight:800;margin:0 0 8px;line-height:1.2}
+  p.lead{color:var(--muted);font-size:15px;margin:0 0 24px;line-height:1.5}
+  .options{display:flex;flex-direction:column;gap:12px}
+  .option{
+    display:flex;align-items:center;gap:14px;padding:16px 18px;
+    background:#161616;border:2px solid var(--border);border-radius:14px;
+    font-size:16px;color:#fff;cursor:pointer;text-align:left;font-weight:600;
+    transition:border-color .15s,background .15s,transform .06s;
+  }
+  .option:active{transform:scale(.99)}
+  .option .emo{font-size:26px;flex-shrink:0;width:36px;text-align:center}
+  .option:hover{border-color:#333}
+  .option.selected{border-color:var(--gold);background:#1c1a10}
+  .option.selected .emo{filter:drop-shadow(0 0 8px rgba(255,215,0,.6))}
+  .option.locked{pointer-events:none}
+
+  .screen{flex:1;display:none;flex-direction:column}
+  .screen.active{display:flex}
+  .center{display:flex;align-items:center;justify-content:center;text-align:center;flex:1;flex-direction:column}
+  .big-emoji{font-size:72px;margin-bottom:12px;line-height:1}
+  .status-title{font-size:28px;font-weight:800;margin:8px 0}
+  .status-sub{color:var(--muted);font-size:15px;margin-top:8px}
+  .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1.4s ease-in-out infinite;margin-right:8px;vertical-align:middle}
+  @keyframes pulse{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:1;transform:scale(1.3)}}
+  .vote-count{font-size:13px;color:var(--muted);text-align:center;margin-top:18px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+  .toast.show{opacity:1}
+  .footer{padding:14px;text-align:center;color:#444;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="brand"><span class="dot"></span><h1>RPM Race</h1></div>
+
+  <!-- Waiting -->
+  <section id="screen-waiting" class="screen active">
+    <div class="center">
+      <div class="big-emoji">🏁</div>
+      <div class="status-title">Get ready.</div>
+      <div class="status-sub"><span class="pulse"></span>The host will open voting shortly.</div>
+    </div>
+  </section>
+
+  <!-- Vote -->
+  <section id="screen-vote" class="screen">
+    <h2>If you had 10 extra hours in a week, what would you do?</h2>
+    <p class="lead">Pick one. Be honest.</p>
+    <div class="options" id="options-list"></div>
+    <div class="vote-count" id="vote-count"></div>
+  </section>
+
+  <!-- Voted -->
+  <section id="screen-voted" class="screen">
+    <div class="center">
+      <div class="big-emoji">✅</div>
+      <div class="status-title">Vote locked in!</div>
+      <div class="status-sub" id="voted-label">Waiting for the race to start…</div>
+      <div class="vote-count" id="voted-count" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <!-- Racing -->
+  <section id="screen-racing" class="screen">
+    <div class="center">
+      <div class="big-emoji">🏎️</div>
+      <div class="status-title">Race in progress!</div>
+      <div class="status-sub">Watch the big screen.</div>
+    </div>
+  </section>
+
+  <!-- Finished -->
+  <section id="screen-finished" class="screen">
+    <div class="center">
+      <div class="big-emoji">🏆</div>
+      <div class="status-title">We have a winner!</div>
+      <div id="winner-label" class="status-sub" style="font-size:20px;font-weight:700;color:var(--gold);margin-top:12px"></div>
+      <div class="status-sub" style="margin-top:8px">Thanks for playing!</div>
+    </div>
+  </section>
+</div>
+<div class="footer" id="conn-status">connecting…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  const BACKEND = "https://rpm-race-rri.fly.dev";
+  const WS_URL  = "wss://rpm-race-rri.fly.dev/ws";
+  const SESS_KEY = "rpm_race_sess_v1";
+  const $ = id => document.getElementById(id);
+
+  // Per-tab session ID
+  let sessionId = sessionStorage.getItem(SESS_KEY);
+  if (!sessionId) { sessionId = crypto.randomUUID(); sessionStorage.setItem(SESS_KEY, sessionId); }
+
+  let myVote = null;
+  let options = [];
+
+  const screens = ["waiting","vote","voted","racing","finished"];
+  function show(s){ screens.forEach(n => $("screen-"+n).classList.toggle("active", n===s)); }
+
+  function toast(msg, ms=2200){
+    const t=$("toast"); t.textContent=msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),ms);
+  }
+
+  function renderOptions(state){
+    const wrap = $("options-list");
+    if (wrap.children.length === options.length) {
+      // Just update counts
+      return;
+    }
+    wrap.innerHTML = "";
+    options.forEach(o => {
+      const btn = document.createElement("button");
+      btn.className = "option" + (myVote === o.id ? " selected locked" : "");
+      btn.dataset.id = o.id;
+      btn.innerHTML = `<span class="emo">${o.emoji}</span><span>${escapeHtml(o.label)}</span>`;
+      btn.addEventListener("click", () => castVote(o.id));
+      wrap.appendChild(btn);
+    });
+  }
+
+  async function castVote(optionId){
+    if (myVote === optionId) return;
+    myVote = optionId;
+    // Optimistic UI
+    document.querySelectorAll(".option").forEach(el => {
+      el.classList.toggle("selected", parseInt(el.dataset.id) === optionId);
+      el.classList.add("locked");
+    });
+    show("voted");
+    const opt = options.find(o => o.id === optionId);
+    $("voted-label").textContent = `You picked: ${opt.emoji} ${opt.label}`;
+
+    try {
+      const r = await fetch(BACKEND + "/vote", {
+        method: "POST",
+        headers: {"content-type":"application/json"},
+        body: JSON.stringify({ sessionId, optionId })
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        toast(data.error === "voting_closed" ? "Voting has closed!" : "Error — try again");
+        if (data.error === "voting_closed") applyState(data);
+      } else {
+        updateVoteCounts(data.state);
+      }
+    } catch(e) { toast("Connection error"); }
+  }
+
+  function updateVoteCounts(state){
+    const total = state.totalVotes;
+    $("vote-count").textContent = total + " vote" + (total===1?"":"s") + " so far";
+    $("voted-count").textContent = total + " vote" + (total===1?"":"s") + " so far";
+  }
+
+  function applyState(state){
+    updateVoteCounts(state);
+    if (state.status === "waiting") {
+      show("waiting");
+    } else if (state.status === "open") {
+      if (myVote !== null) {
+        show("voted");
+      } else {
+        renderOptions(state);
+        show("vote");
+      }
+    } else if (state.status === "racing") {
+      if (myVote !== null) show("racing"); else show("racing");
+    } else if (state.status === "finished") {
+      if (state.winner !== null) {
+        const opt = options.find(o => o.id === state.winner);
+        $("winner-label").textContent = opt ? opt.emoji + " " + opt.label : "";
+      }
+      show("finished");
+    }
+  }
+
+  // Load options then connect WS
+  fetch(BACKEND + "/options").then(r=>r.json()).then(data => {
+    options = data.options;
+    applyState(data.state);
+    connectWS();
+  }).catch(() => { $("conn-status").textContent = "⚠ connection error"; });
+
+  let ws, reconnDelay = 500;
+  function connectWS(){
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => { $("conn-status").textContent = ""; reconnDelay = 500; };
+    ws.onmessage = ev => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "state") applyState(msg.state);
+      if (msg.type === "finished") {
+        if (msg.state.winner !== null) {
+          const opt = options.find(o => o.id === msg.state.winner);
+          $("winner-label").textContent = opt ? opt.emoji + " " + opt.label : "";
+        }
+        show("finished");
+      }
+      if (msg.type === "reset") {
+        myVote = null; sessionStorage.removeItem(SESS_KEY);
+        sessionId = crypto.randomUUID(); sessionStorage.setItem(SESS_KEY, sessionId);
+        show("waiting");
+        toast("New round starting…", 3000);
+      }
+    };
+    ws.onclose = () => {
+      $("conn-status").textContent = "reconnecting…";
+      setTimeout(connectWS, reconnDelay);
+      reconnDelay = Math.min(5000, Math.round(reconnDelay * 1.6));
+    };
+    ws.onerror = () => {};
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && (!ws || ws.readyState > 1)) connectWS();
+  });
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+})();
+</script>
+</body>
+</html>
